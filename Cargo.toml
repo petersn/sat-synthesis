@@ -1,0 +1,23 @@
+[package]
+name = "sat-synthesis"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.dev.package.autosat]
+opt-level = 3
+
+[build-dependencies]
+autosat = "0.1.0"
+serde = { version = "1.0.155", features = [ "derive" ] }
+serde_json = { version = "1.0.94", features = [ "preserve_order" ] }
+
+[dependencies]
+varisat = "0.2.2"
+splr = { version = "0.17.0", features = [ "incremental_solver" ] }
+serde = { version = "1.0.155", features = [ "derive" ] }
+serde_json = { version = "1.0.94", features = [ "preserve_order" ] }
+tempfile = "3.10.0"
+
