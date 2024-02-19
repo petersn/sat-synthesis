@@ -1,8 +1,3 @@
-#[path = "src/standard_cells.rs"]
-mod standard_cells;
-
-use crate::standard_cells::{CombinationalGateType, BITS_FOR_GATE_TYPE, MAXIMUM_GATE_COST};
-
 fn format_cnf(name: &str, input_count: usize, output_count: usize, cnf: &Vec<Vec<i32>>) -> String {
   let mut output = format!(
     "StaticCnf {{ name: {:?}, input_count: {}, output_count: {}, cnf: &[\n",
@@ -30,30 +25,26 @@ pub fn generate() -> String {
 "#,
   );
 
-  const READ_WIRES_COUNT: usize = 10;
+  const READ_WIRES_COUNT: usize = 12;
   output.push_str(&format!("pub static READ_WIRES: [StaticCnf; {}] = [\n", READ_WIRES_COUNT));
   // We now figure out CNF for reading from sets of wires.
   for wire_count in 0..READ_WIRES_COUNT {
-    // Add one to wire count, for the constant zero wire.
-    let address_bits = (1usize + wire_count).next_power_of_two().trailing_zeros() as usize;
-    // The first bit is negation, then address, then the wires we're muxing over.
-    let input_bits = 1 + address_bits + wire_count;
+    println!("------------- Generating CNF for reading from {} wires", wire_count);
+    let address_bits = wire_count.next_power_of_two().trailing_zeros() as usize;
+    let input_bits = address_bits + wire_count;
     let cnf = autosat::convert_to_cnf(input_bits, 1, |inp| {
-      let negation = inp[0];
       let mut address = 0;
-      for (i, b) in inp[1..1 + address_bits].iter().enumerate() {
+      for (i, b) in inp[..address_bits].iter().enumerate() {
         address |= (*b as usize) << i;
       }
-      if address > wire_count {
+      if address >= wire_count {
         // FIXME: Is DontCare or ImpossibleInputs what I want here?
         return autosat::SatOutput::ImpossibleInputs;
       }
-      let indexed = match address == 0 {
-        true => false,
-        false => inp[1 + address_bits + (address - 1)],
-      };
-      return autosat::SatOutput::Bits(vec![negation ^ indexed]);
+      let result = inp[address_bits + address];
+      return autosat::SatOutput::Bits(vec![result]);
     });
+    println!("CNF: {:?}", cnf);
     output.push_str(&format!(
       "  // {} wires ({} address lines)\n  {},\n",
       wire_count,
