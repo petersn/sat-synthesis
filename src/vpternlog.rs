@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{cardinality_constraint, ConfigVars, ProgramSynthesis, SatInstance, SatLiteral};
+use super::{sat_tables, ConfigVars, ProgramSynthesis, SatInstance, SatLiteral};
 
 #[derive(Debug)]
 pub struct VpternlogGate {
@@ -15,6 +15,7 @@ pub struct VpternlogProgram {
   pub gates: Vec<VpternlogGate>,
 }
 
+#[derive(Debug)]
 pub struct VpternlogResourcesSpec {
   pub input_count: usize,
   pub output_count: usize,
@@ -155,9 +156,28 @@ impl ProgramSynthesis for VpternlogProgram {
     input_vars: &[SatLiteral],
     output_vars: &[SatLiteral],
   ) {
+    assert_eq!(input_vars.len(), configuration_vars.input_count);
+    assert_eq!(output_vars.len(), configuration_vars.output_count);
+    let mut mux = |address: &[SatLiteral], inputs: &[SatLiteral]| -> SatLiteral {
+      let output = instance.fresh();
+      let all_inputs: Vec<_> = [address, inputs].concat();
+      instance.add_precompiled(&sat_tables::READ_WIRES[inputs.len()], &all_inputs, &[output]);
+      output
+    };
     let mut wires = input_vars.to_vec();
     for gate in &configuration_vars.config_vars_data {
-      //gate.lut
+      let lut_inputs = [
+        mux(&gate.input_indices[0], &wires),
+        mux(&gate.input_indices[1], &wires),
+        mux(&gate.input_indices[2], &wires),
+      ];
+      let lut_output = mux(&lut_inputs, &gate.lut);
+      wires.push(lut_output);
+    }
+    let output_index = wires.len() - configuration_vars.output_count;
+    for i in 0..configuration_vars.output_count {
+      instance.add_clause(vec![output_vars[i], -wires[output_index + i]]);
+      instance.add_clause(vec![-output_vars[i], wires[output_index + i]]);
     }
   }
 }

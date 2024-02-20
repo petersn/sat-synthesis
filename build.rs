@@ -67,35 +67,14 @@ pub fn generate() -> String {
       ));
     };
 
-  add_function("EVALUATE_LUT", 8 + 3, 1, |inp| {
-    let lut = &inp[..8];
-    let inputs = &inp[8..];
-    let mut address = 0;
-    for (i, b) in inputs.iter().enumerate() {
-      address |= (*b as usize) << i;
-    }
-    vec![lut[address]]
+  add_function("FULL_ADDER", 3, 2, |inp| {
+    let a = inp[0];
+    let b = inp[1];
+    let c = inp[2];
+    let s = a ^ b ^ c;
+    let c_out = (a & b) | (b & c) | (a & c);
+    vec![s, c_out]
   });
-
-  // add_function("EVALUATE_GATE", BITS_FOR_GATE_TYPE + 3, 1, |inp| {
-  //   let gate = CombinationalGateType::from_bits(&inp[..BITS_FOR_GATE_TYPE]);
-  //   let inputs = &inp[BITS_FOR_GATE_TYPE..];
-  //   match gate {
-  //     CombinationalGateType::NoGate => vec![false],
-  //     CombinationalGateType::And2 => vec![inputs[0] & inputs[1]],
-  //     CombinationalGateType::Or2 => vec![inputs[0] | inputs[1]],
-  //     CombinationalGateType::Xor2 => vec![inputs[0] ^ inputs[1]],
-  //   }
-  // });
-
-  // add_function("DECODE_COST", BITS_FOR_GATE_TYPE, MAXIMUM_GATE_COST, |inp| {
-  //   let gate = CombinationalGateType::from_bits(inp);
-  //   let cost = gate.get_cost();
-  //   // Return cost trues, and MAXIMUM_GATE_COST - cost falses.
-  //   let mut out = vec![true; cost];
-  //   out.resize(MAXIMUM_GATE_COST, false);
-  //   out
-  // });
 
   output
 }
