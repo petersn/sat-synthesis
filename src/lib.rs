@@ -581,6 +581,7 @@ pub fn lookup_table_search<OutputSynth: ProgramSynthesis>(
     let candidate_program = OutputSynth::decode_program(&config_vars, &program_search_model);
     let mut bits = vec![false; config_vars.input_count];
     let mut counter_example = None;
+    let mut counter_example_count = 0;
     for i in 0..1 << config_vars.input_count {
       for (j, bit) in bits.iter_mut().enumerate() {
         *bit = (i >> j) & 1 == 1;
@@ -590,7 +591,8 @@ pub fn lookup_table_search<OutputSynth: ProgramSynthesis>(
       if sop1_value != sop2_value {
         //panic!("Disagreement: {:?} vs {:?}", sop1_value, sop2_value);
         counter_example = Some(bits.clone());
-        break;
+        // break;
+        counter_example_count += 1;
       }
     }
 
@@ -631,7 +633,9 @@ pub fn lookup_table_search<OutputSynth: ProgramSynthesis>(
 
     // let mut counter_example_bits = vec![];
     // Force the inputs.
-    log(&format!("Found counter-example: {:?}", counter_example_bits));
+    log(&format!("[{} examples] [correct behavior: {}/{}] Found counter-example: {:?}",
+      counter_examples.len(), counter_example_count, 1 << config_vars.input_count, counter_example_bits
+    ));
     if !counter_examples.insert(counter_example_bits.clone()) {
       panic!("Duplicate counter-example: {:?} -- this usually indicates a bug in build_fpga", counter_example_bits);
     }

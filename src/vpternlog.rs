@@ -37,6 +37,37 @@ pub fn bits_for_index(options: usize) -> usize {
   options.next_power_of_two().trailing_zeros() as usize
 }
 
+pub fn mux(
+  instance: &mut SatInstance, false_lit: SatLiteral, address: &[SatLiteral], inputs: &[SatLiteral],
+) -> SatLiteral {
+  if inputs.len() < sat_tables::READ_WIRES_NO_OOB.len() {
+    let output = instance.fresh();
+    let all_inputs: Vec<_> = [address, inputs].concat();
+    instance.add_precompiled(&sat_tables::READ_WIRES_NO_OOB[inputs.len()], &all_inputs, &[output]);
+    output
+  } else {
+    // Otherwise, we need to use a cascade of multiplexers.
+    let sqrt_input_count = (inputs.len() as f64).sqrt() as usize;
+    let split_size = sqrt_input_count.next_power_of_two().min(8).min(inputs.len());
+    // println!("n: {}, split_size: {}", inputs.len(), split_size);
+    assert!(0 < split_size);
+    assert!(split_size < inputs.len());
+    let (split_addr, remaining_addr) = address.split_at(split_size.ilog2() as usize);
+    // Use first few bits of the address to perform the initial muxing.
+    let mut chunk_muxes = Vec::new();
+    for chunk in inputs.chunks(split_size) {
+      let mut chunk = chunk.to_vec();
+      while chunk.len() < split_size {
+        chunk.push(false_lit);
+      }
+      let chunk_output = mux(instance, false_lit, &split_addr, &chunk);
+      chunk_muxes.push(chunk_output);
+    }
+    // Use the remaining bits of the address to perform the final muxing.
+    mux(instance, false_lit, remaining_addr, &chunk_muxes)
+  }
+}
+
 impl ProgramSynthesis for VpternlogProgram {
   type ProgramResourcesSpec = VpternlogResourcesSpec;
   type ConfigVarsData = VpternlogConfigVars;
@@ -164,13 +195,13 @@ impl ProgramSynthesis for VpternlogProgram {
   fn evaluate(&self, inputs: &[bool]) -> Vec<bool> {
     let mut values = inputs.to_vec();
     for gate in &self.gates {
-      let x0 = values[gate.input_indices[0]];
-      let x1 = values[gate.input_indices[1]];
-      let x2 = values[gate.input_indices[2]];
+      let x0 = values.get(gate.input_indices[0]).copied().unwrap_or(false);
+      let x1 = values.get(gate.input_indices[1]).copied().unwrap_or(false);
+      let x2 = values.get(gate.input_indices[2]).copied().unwrap_or(false);
       let lut_index = (x0 as usize) + 2 * (x1 as usize) + 4 * (x2 as usize);
       values.push(gate.lut[lut_index]);
     }
-    (0..self.output_count).map(|i| values[self.final_selection[i]]).collect()
+    (0..self.output_count).map(|i| values.get(self.final_selection[i]).copied().unwrap_or(false)).collect()
   }
 
   fn build_fpga(
@@ -181,26 +212,20 @@ impl ProgramSynthesis for VpternlogProgram {
   ) {
     assert_eq!(input_vars.len(), configuration_vars.input_count);
     assert_eq!(output_vars.len(), configuration_vars.output_count);
-    fn mux(
-      instance: &mut SatInstance, address: &[SatLiteral], inputs: &[SatLiteral],
-    ) -> SatLiteral {
-      let output = instance.fresh();
-      let all_inputs: Vec<_> = [address, inputs].concat();
-      instance.add_precompiled(&sat_tables::READ_WIRES[inputs.len()], &all_inputs, &[output]);
-      output
-    }
+    let false_lit = instance.fresh();
+    instance.add_clause(vec![-false_lit]);
     let mut wires = input_vars.to_vec();
     for gate in &configuration_vars.config_vars_data.gates {
       let lut_inputs = [
-        mux(instance, &gate.input_indices[0], &wires),
-        mux(instance, &gate.input_indices[1], &wires),
-        mux(instance, &gate.input_indices[2], &wires),
+        mux(instance, false_lit, &gate.input_indices[0], &wires),
+        mux(instance, false_lit, &gate.input_indices[1], &wires),
+        mux(instance, false_lit, &gate.input_indices[2], &wires),
       ];
-      let lut_output = mux(instance, &lut_inputs, &gate.lut);
+      let lut_output = mux(instance, false_lit, &lut_inputs, &gate.lut);
       wires.push(lut_output);
     }
     for i in 0..configuration_vars.output_count {
-      let final_bit = mux(instance, &configuration_vars.config_vars_data.final_selection[i], &wires);
+      let final_bit = mux(instance, false_lit, &configuration_vars.config_vars_data.final_selection[i], &wires);
       instance.add_clause(vec![final_bit, -output_vars[i]]);
       instance.add_clause(vec![-final_bit, output_vars[i]]);
     }

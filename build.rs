@@ -25,34 +25,44 @@ pub fn generate() -> String {
 "#,
   );
 
-  const READ_WIRES_COUNT: usize = 12;
-  output.push_str(&format!("pub static READ_WIRES: [StaticCnf; {}] = [\n", READ_WIRES_COUNT));
-  // We now figure out CNF for reading from sets of wires.
-  for wire_count in 0..READ_WIRES_COUNT {
-    println!("------------- Generating CNF for reading from {} wires", wire_count);
-    let address_bits = wire_count.next_power_of_two().trailing_zeros() as usize;
-    let input_bits = address_bits + wire_count;
-    let cnf = autosat::convert_to_cnf(input_bits, 1, |inp| {
-      let mut address = 0;
-      for (i, b) in inp[..address_bits].iter().enumerate() {
-        address |= (*b as usize) << i;
-      }
-      if address >= wire_count {
-        // FIXME: Is DontCare or ImpossibleInputs what I want here?
-        return autosat::SatOutput::ImpossibleInputs;
-      }
-      let result = inp[address_bits + address];
-      return autosat::SatOutput::Bits(vec![result]);
-    });
-    println!("CNF: {:?}", cnf);
-    output.push_str(&format!(
-      "  // {} wires ({} address lines)\n  {},\n",
-      wire_count,
-      address_bits,
-      format_cnf(&format!("READ_WIRES_{}", wire_count), input_bits, 1, &cnf)
-    ));
+  const READ_WIRES_COUNT: usize = 10;
+
+  for oob_gives_false in [false, true] {
+    let suffix = match oob_gives_false {
+      false => "NO_OOB",
+      true => "OOB_GIVES_FALSE",
+    };
+    output.push_str(&format!("pub static READ_WIRES_{}: [StaticCnf; {}] = [\n", suffix, READ_WIRES_COUNT + 1));
+    // We now figure out CNF for reading from sets of wires.
+    for wire_count in 0..=READ_WIRES_COUNT {
+      println!("------------- Generating CNF for reading from {} wires", wire_count);
+      let address_bits = wire_count.next_power_of_two().trailing_zeros() as usize;
+      let input_bits = address_bits + wire_count;
+      let cnf = autosat::convert_to_cnf(input_bits, 1, |inp| {
+        let mut address = 0;
+        for (i, b) in inp[..address_bits].iter().enumerate() {
+          address |= (*b as usize) << i;
+        }
+        if address >= wire_count {
+          if oob_gives_false {
+            return autosat::SatOutput::Bits(vec![false]);
+          }
+          // FIXME: Is DontCare or ImpossibleInputs what I want here?
+          return autosat::SatOutput::ImpossibleInputs;
+        }
+        let result = inp[address_bits + address];
+        return autosat::SatOutput::Bits(vec![result]);
+      });
+      println!("CNF: {:?}", cnf);
+      output.push_str(&format!(
+        "  // {} wires ({} address lines)\n  {},\n",
+        wire_count,
+        address_bits,
+        format_cnf(&format!("READ_WIRES_{}_{}", suffix, wire_count), input_bits, 1, &cnf)
+      ));
+    }
+    output.push_str("];\n");
   }
-  output.push_str("];\n");
 
   let mut add_function =
     |name: &str, input_count: usize, output_count: usize, function: fn(&[bool]) -> Vec<bool>| {
