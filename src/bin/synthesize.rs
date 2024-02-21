@@ -32,7 +32,7 @@ fn main() {
     // SatSolver::Splr,
   ];
 
-  let solver = SatSolver::External(&["cryptominisat"]);
+  let solver = SatSolver::External(&["cryptominisat5"]);
 
   let mut output_file = std::fs::File::create("best_circuits.txt").unwrap();
 

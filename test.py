@@ -1,19 +1,16 @@
 import itertools
 
 def vpternlog(x0, x1, x2, imm):
-    #idx = x0 + 2 * x1 + 4 * x2
-    idx = 4 * x2 + 2 * x1 + x0
-    idx = 7 - idx
+    idx = 4 * x0 + 2 * x1 + x2
     return (imm >> idx) & 1
 
 def ham4(x0, x1, x2, x3):
-    t0 = vpternlog(x2, x0, x3, 0x69)
-    t1 = vpternlog(t0, x1, x0, 0xc3)
-    t2 = vpternlog(x0, x2, x3, 0x81)
-    t3 = vpternlog(x3, x1, t2, 0x80)
-    t4 = vpternlog(x1, t1, t2, 0x59)
-    return t1, t4, t3
-
+    t0 = vpternlog(x3, x2, x1, 0x3c)
+    t1 = vpternlog(x3, x2, x1, 0x7e)
+    t2 = vpternlog(x0, t0, x1, 0x96)
+    t3 = vpternlog(t1, t2, x0, 0xb4)
+    t4 = vpternlog(x3, t2, t1, 0x10)
+    return t2 + 2 * t3 + 4 * t4
 
 for bits in itertools.product([0, 1], repeat=4):
-    print(ham4(*bits), bits)
+    print(ham4(*bits), bits, ham4(*bits) == sum(bits))
