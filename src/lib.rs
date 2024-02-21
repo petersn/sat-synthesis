@@ -389,7 +389,7 @@ pub fn program_search<InputSynth: ProgramSynthesis, OutputSynth: ProgramSynthesi
   let mut program_search_instance = SatInstance::new(solver);
   let config_vars =
     OutputSynth::create_configuration_vars(&mut program_search_instance, resources_spec);
-  //// Constrain cost.
+  // // Constrain cost.
   //OutputSynth::constrain_cost(&mut program_search_instance, &config_vars_data, cost_limit);
 
   let false_lit = program_search_instance.fresh();

@@ -28,7 +28,7 @@ impl VpternlogProgram {
       let value = lut.iter().enumerate().map(|(i, &b)| if b { 1 << i } else { 0 }).sum::<usize>();
       format!("0x{:02x}", value)
     };
-    println!("x0, ... x{} = input bits", self.input_count - 1);
+    s.push_str(&format!"x0, ... x{} = input bits\n", self.input_count - 1));
     for (i, gate) in self.gates.iter().enumerate() {
       s.push_str(&format!("t{} = vpternlog({}, {}, {}, {})\n", i,
         format_index(gate.input_indices[0]),
@@ -39,10 +39,10 @@ impl VpternlogProgram {
     }
     s.push_str("output:");
     for (i, &final_selection) in self.final_selection.iter().enumerate() {
-      s.push_str(&format!(" {}", format_index(final_selection)));
-      if i + 1 < self.final_selection.len() {
-        s.push_str(",");
+      if i != 0 {
+        s.push_str(" +");
       }
+      s.push_str(&format!(" {}*{}", (1 << i), format_index(final_selection)));
     }
     s
   }
