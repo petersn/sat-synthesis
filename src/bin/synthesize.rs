@@ -2,16 +2,19 @@ use clap::Parser;
 use std::path::PathBuf;
 use sat_synthesis::{lookup_table_search, vpternlog::{VpternlogProgram, VpternlogResourcesSpec}, SatSolver, CegisSettings};
 
-fn hamming_weight_search(solver: SatSolver, settings: CegisSettings, n: usize, gate_count: usize) -> Option<VpternlogProgram> {
+fn hamming_weight_search(solver: SatSolver, args: &Args, n: usize, gate_count: usize) -> Option<VpternlogProgram> {
   let resources_spec = VpternlogResourcesSpec {
     input_count: n,
     output_count: (n + 1).next_power_of_two().trailing_zeros() as usize,
     gate_count,
+    break_symmetry_15: args.break_symmetry_15,
   };
   // println!("resources_spec: {:#?}", resources_spec);
   lookup_table_search::<VpternlogProgram>(
     solver,
-    settings,
+    CegisSettings {
+      counter_examples_per_step: args.counter_examples_per_step,
+    },
     // SatSolver::External(&["glucose", "-model"]),
     // SatSolver::Varisat,
     |bits| {
@@ -34,18 +37,21 @@ struct Args {
 
   #[arg(short, long, default_value = "10")]
   counter_examples_per_step: usize,
+
+  #[arg(short, long, default_value = "2")]
+  start_size: usize,
+
+  #[arg(short, long)]
+  break_symmetry_15: bool,
 }
 
 fn main() {
   let args: Args = Args::parse();
 
   let solver = SatSolver::External(&["cryptominisat5"]);
-  let settings = CegisSettings {
-    counter_examples_per_step: args.counter_examples_per_step,
-  };
   let mut output_file = std::fs::File::create(&args.output_file).unwrap();
 
-  for input_count in 15.. {
+  for input_count in args.start_size.. {
     let input_count_search_start_time = std::time::Instant::now();
     let mut found_lower = false;
     let mut found_upper = false;
@@ -61,7 +67,7 @@ fn main() {
       let start_time = std::time::Instant::now();
       let test_value = (bound_lo + bound_hi) / 2;
       println!("\x1b[92mTesting\x1b[0m input_count = {} with gate_count = {}   (lo={}, hi={})", input_count, test_value, bound_lo, bound_hi);
-      let r = hamming_weight_search(solver, settings, input_count, test_value);
+      let r = hamming_weight_search(solver, &args, input_count, test_value);
 
       match (&r, &best_program_and_gate_count) {
         (Some(program), Some((_, best_gate_count))) if test_value < *best_gate_count => {

@@ -53,6 +53,7 @@ pub struct VpternlogResourcesSpec {
   pub input_count: usize,
   pub output_count: usize,
   pub gate_count:  usize,
+  pub break_symmetry_15: bool,
 }
 
 pub struct VpternlogGateConfigVars {
@@ -125,24 +126,26 @@ impl ProgramSynthesis for VpternlogProgram {
     }
     let final_selection = (0..resources_spec.output_count)
       .map(|_| instance.n_fresh(bits_for_index(wire_count))).collect();
-    // We make the first five gates apply to triplets of input bits.
-    for gate in 0..5 {
-      for i in 0..3 {
-        let x = gate * 3 + i;
-        for (j, &lit) in gates[gate].input_indices[i].iter().enumerate() {
-          if (x >> j) & 1 == 1 {
-            instance.add_clause(vec![lit]);
-          } else {
-            instance.add_clause(vec![-lit]);
+    if resources_spec.break_symmetry_15 {
+      // We make the first five gates apply to triplets of input bits.
+      for gate in 0..5 {
+        for i in 0..3 {
+          let x = gate * 3 + i;
+          for (j, &lit) in gates[gate].input_indices[i].iter().enumerate() {
+            if (x >> j) & 1 == 1 {
+              instance.add_clause(vec![lit]);
+            } else {
+              instance.add_clause(vec![-lit]);
+            }
           }
         }
       }
-    }
-    // Force the first five gates to have the same LUT.
-    for gate in 1..5 {
-      for i in 0..8 {
-        instance.add_clause(vec![gates[0].lut[i], -gates[gate].lut[i]]);
-        instance.add_clause(vec![-gates[0].lut[i], gates[gate].lut[i]]);
+      // Force the first five gates to have the same LUT.
+      for gate in 1..5 {
+        for i in 0..8 {
+          instance.add_clause(vec![gates[0].lut[i], -gates[gate].lut[i]]);
+          instance.add_clause(vec![-gates[0].lut[i], gates[gate].lut[i]]);
+        }
       }
     }
     ConfigVars {
