@@ -8,7 +8,8 @@ fn hamming_weight_search(n: usize, gate_count: usize) -> Option<VpternlogProgram
   };
   println!("resources_spec: {:#?}", resources_spec);
   lookup_table_search::<VpternlogProgram>(
-    SatSolver::External(()),
+    // SatSolver::External(&["minisat"]),
+    SatSolver::Varisat,
     |bits| {
       let count_set = bits.iter().filter(|&&b| b).count();
       let output_length = (bits.len() + 1).next_power_of_two().trailing_zeros() as usize;
