@@ -34,14 +34,28 @@ fn main() {
 
   let solver = SatSolver::External(&["cryptominisat"]);
 
-  for input_count in 2..=15 {
-    let mut bound_lo = 1;
+  let mut output_file = std::fs::File::create("best_circuits.txt").unwrap();
+
+  for input_count in 2..=15usize {
+    let mut best_program_and_gate_count = None;
+    let mut bound_lo = input_count.saturating_sub(1);
     let mut bound_hi = input_count * 2;
     while bound_lo < bound_hi {
       let start_time = std::time::Instant::now();
       let test_value = (bound_lo + bound_hi) / 2;
       println!("\x1b[92mTesting\x1b[0m input_count = {} with gate_count = {}   (lo={}, hi={})", input_count, test_value, bound_lo, bound_hi);
       let r = hamming_weight_search(solver, input_count, test_value);
+
+      match (&r, &best_program_and_gate_count) {
+        (Some(program), Some((_, best_gate_count))) if test_value < *best_gate_count => {
+          best_program_and_gate_count = Some((program.clone(), test_value));
+        }
+        (Some(program), None) => {
+          best_program_and_gate_count = Some((program.clone(), test_value));
+        }
+        _ => {}
+      }
+
       let elapsed = start_time.elapsed();
       println!("Solver: {:?} finished in {:?}", solver, elapsed);
       match r {
@@ -57,6 +71,13 @@ fn main() {
       }
     }
     println!("\x1b[91mFinal gate count\x1b[0m: input_count = {}, gate_count = {}", input_count, bound_lo);
+
+    if let Some((best_program, best_gate_count)) = best_program_and_gate_count {
+      use std::io::Write;
+      writeln!(output_file, "===== input_count = {}, gate_count = {} =====", input_count, best_gate_count).unwrap();
+      writeln!(output_file, "{}\n", best_program.pretty_print()).unwrap();
+      output_file.flush().unwrap();
+    }
 
     // // Launch a thread for each solver.
     // let handles: Vec<_> = solver_list

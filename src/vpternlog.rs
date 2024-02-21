@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use super::{sat_tables, ConfigVars, ProgramSynthesis, SatInstance, SatLiteral};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VpternlogGate {
   pub lut: [bool; 8],
   pub input_indices: [usize; 3],
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VpternlogProgram {
   pub input_count: usize,
   pub output_count: usize,
