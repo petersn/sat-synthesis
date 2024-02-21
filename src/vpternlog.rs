@@ -230,7 +230,7 @@ impl ProgramSynthesis for VpternlogProgram {
       let x0 = values.get(gate.input_indices[0]).copied().unwrap_or(false);
       let x1 = values.get(gate.input_indices[1]).copied().unwrap_or(false);
       let x2 = values.get(gate.input_indices[2]).copied().unwrap_or(false);
-      let lut_index = (x0 as usize) + 2 * (x1 as usize) + 4 * (x2 as usize);
+      let lut_index = 4 * (x0 as usize) + 2 * (x1 as usize) + (x2 as usize);
       values.push(gate.lut[lut_index]);
     }
     (0..self.output_count).map(|i| values.get(self.final_selection[i]).copied().unwrap_or(false)).collect()
@@ -249,9 +249,9 @@ impl ProgramSynthesis for VpternlogProgram {
     let mut wires = input_vars.to_vec();
     for gate in &configuration_vars.config_vars_data.gates {
       let lut_inputs = [
-        mux(instance, false_lit, &gate.input_indices[0], &wires),
-        mux(instance, false_lit, &gate.input_indices[1], &wires),
         mux(instance, false_lit, &gate.input_indices[2], &wires),
+        mux(instance, false_lit, &gate.input_indices[1], &wires),
+        mux(instance, false_lit, &gate.input_indices[0], &wires),
       ];
       let lut_output = mux(instance, false_lit, &lut_inputs, &gate.lut);
       wires.push(lut_output);

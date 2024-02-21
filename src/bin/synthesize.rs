@@ -37,8 +37,16 @@ fn main() {
   let mut output_file = std::fs::File::create("best_circuits.txt").unwrap();
 
   for input_count in 2..=15usize {
+    let input_count_search_start_time = std::time::Instant::now();
+    let mut found_lower = false;
+    let mut found_upper = false;
     let mut best_program_and_gate_count = None;
-    let mut bound_lo = input_count.saturating_sub(1);
+    let mut bound_lo = match input_count {
+      1 => 0,
+      2 => 1,
+      3 => 1,
+      _ => 2,
+    };
     let mut bound_hi = input_count * 2;
     while bound_lo < bound_hi {
       let start_time = std::time::Instant::now();
@@ -63,21 +71,27 @@ fn main() {
           println!("\x1b[93mProgram with {} gates:\x1b[0m", test_value);
           println!("{}", program.pretty_print());
           bound_hi = test_value;
+          found_upper = true;
         }
         None => {
           println!("\x1b[93mNo solution exists for {} gates.\x1b[0m", test_value);
           bound_lo = test_value + 1;
+          found_lower = true;
         }
       }
     }
     println!("\x1b[91mFinal gate count\x1b[0m: input_count = {}, gate_count = {}", input_count, bound_lo);
 
     if let Some((best_program, best_gate_count)) = best_program_and_gate_count {
+      let elapsed = input_count_search_start_time.elapsed();
       use std::io::Write;
-      writeln!(output_file, "===== input_count = {}, gate_count = {} =====", input_count, best_gate_count).unwrap();
+      writeln!(output_file, "===== input_count = {}, gate_count = {} ===== (found in {:?})", input_count, best_gate_count, elapsed).unwrap();
       writeln!(output_file, "{}\n", best_program.pretty_print()).unwrap();
       output_file.flush().unwrap();
     }
+
+    assert!(found_lower);
+    assert!(found_upper);
 
     // // Launch a thread for each solver.
     // let handles: Vec<_> = solver_list
