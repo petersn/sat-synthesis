@@ -45,7 +45,7 @@ fn main() {
   };
   let mut output_file = std::fs::File::create(&args.output_file).unwrap();
 
-  for input_count in 2.. {
+  for input_count in 15.. {
     let input_count_search_start_time = std::time::Instant::now();
     let mut found_lower = false;
     let mut found_upper = false;
