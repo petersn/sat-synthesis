@@ -600,8 +600,6 @@ pub fn lookup_table_search<OutputSynth: ProgramSynthesis>(
     if current_counter_examples.is_empty() {
       break candidate_program;
     }
-    let i = rand::random::<usize>() % current_counter_examples.len();
-    let counter_example_bits = &current_counter_examples[i];
 
     // InputSynth::fix_configuration(
     //   &mut counter_example_search_instance,
@@ -637,20 +635,28 @@ pub fn lookup_table_search<OutputSynth: ProgramSynthesis>(
     // let mut counter_example_bits = vec![];
     // Force the inputs.
     let correct_behavior = (1 << config_vars.input_count) - current_counter_examples.len();
-    log(&format!("[{} examples] [correct behavior: {}/{}] Found counter-example: {:?}",
-      counter_examples.len(), correct_behavior, 1 << config_vars.input_count, counter_example_bits
+    log(&format!("[{} examples] [correct behavior: {}/{}]",
+      counter_examples.len(), correct_behavior, 1 << config_vars.input_count,
     ));
-    if !counter_examples.insert(counter_example_bits.clone()) {
-      panic!("Duplicate counter-example: {:?} -- this usually indicates a bug in build_fpga", counter_example_bits);
+    // let i = rand::random::<usize>() % current_counter_examples.len();
+    // let counter_example_bits = &current_counter_examples[i];
+    // Shuffle the current counter-examples.
+    let mut rng = rand::thread_rng();
+    use rand::seq::SliceRandom;
+    current_counter_examples.shuffle(&mut rng);
+    for counter_example_bits in &current_counter_examples[0..10.min(current_counter_examples.len())] {
+      if !counter_examples.insert(counter_example_bits.clone()) {
+        panic!("Duplicate counter-example: {:?} -- this usually indicates a bug in build_fpga", counter_example_bits);
+      }
+      let desired_value = lut(&counter_example_bits);
+      // Add the counter-example as a constraint on our program search.
+      OutputSynth::build_fpga(
+        &mut program_search_instance,
+        &config_vars,
+        &bits_to_literals(&counter_example_bits),
+        &bits_to_literals(&desired_value),
+      );
     }
-    let desired_value = lut(&counter_example_bits);
-    // Add the counter-example as a constraint on our program search.
-    OutputSynth::build_fpga(
-      &mut program_search_instance,
-      &config_vars,
-      &bits_to_literals(&counter_example_bits),
-      &bits_to_literals(&desired_value),
-    );
   };
 
   for input in 0..1 << config_vars.input_count {

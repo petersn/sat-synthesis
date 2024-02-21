@@ -16,6 +16,38 @@ pub struct VpternlogProgram {
   pub final_selection: Vec<usize>,
 }
 
+impl VpternlogProgram {
+  pub fn pretty_print(&self) -> String {
+    let mut s = String::new();
+    let format_index = |index: usize| if index < self.input_count {
+      format!("x{}", index)
+    } else {
+      format!("t{}", index - self.input_count)
+    };
+    let format_lut = |lut: &[bool; 8]| {
+      let value = lut.iter().enumerate().map(|(i, &b)| if b { 1 << i } else { 0 }).sum::<usize>();
+      format!("0x{:02x}", value)
+    };
+    println!("x0, ... x{} = input bits", self.input_count - 1);
+    for (i, gate) in self.gates.iter().enumerate() {
+      s.push_str(&format!("t{} = vpternlog({}, {}, {}, {})\n", i,
+        format_index(gate.input_indices[0]),
+        format_index(gate.input_indices[1]),
+        format_index(gate.input_indices[2]),
+        format_lut(&gate.lut),
+      ));
+    }
+    s.push_str("output:");
+    for (i, &final_selection) in self.final_selection.iter().enumerate() {
+      s.push_str(&format!(" {}", format_index(final_selection)));
+      if i + 1 < self.final_selection.len() {
+        s.push_str(",");
+      }
+    }
+    s
+  }
+}
+
 #[derive(Debug)]
 pub struct VpternlogResourcesSpec {
   pub input_count: usize,

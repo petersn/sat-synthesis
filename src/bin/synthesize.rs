@@ -31,19 +31,57 @@ fn main() {
     // SatSolver::Varisat,
     // SatSolver::Splr,
   ];
-  // Launch a thread for each solver.
-  let handles: Vec<_> = solver_list
-    .iter()
-    .map(|solver| {
-      let solver = *solver;
-      std::thread::spawn(move || {
-        let r = hamming_weight_search(solver, 15, 21);
-        println!("Solver: {:?} finished: {:#?}", solver, r);
-      })
-    })
-    .collect();
-  // Wait for all threads to finish.
-  for handle in handles {
-    handle.join().unwrap();
+
+  let solver = SatSolver::External(&["cryptominisat"]);
+
+  for input_count in 2..=15 {
+    let mut bound_lo = 1;
+    let mut bound_hi = input_count * 2;
+    while bound_lo < bound_hi {
+      let start_time = std::time::Instant::now();
+      let test_value = (bound_lo + bound_hi) / 2;
+      println!("\x1b[92mTesting\x1b[0m input_count = {} with gate_count = {}   (lo={}, hi={})", input_count, test_value, bound_lo, bound_hi);
+      let r = hamming_weight_search(solver, input_count, test_value);
+      let elapsed = start_time.elapsed();
+      println!("Solver: {:?} finished in {:?}", solver, elapsed);
+      match r {
+        Some(program) => {
+          println!("\x1b[93mProgram with {} gates:\x1b[0m", test_value);
+          println!("{}", program.pretty_print());
+          bound_hi = test_value;
+        }
+        None => {
+          println!("\x1b[93mNo solution exists for {} gates.\x1b[0m", test_value);
+          bound_lo = test_value + 1;
+        }
+      }
+    }
+    println!("\x1b[91mFinal gate count\x1b[0m: input_count = {}, gate_count = {}", input_count, bound_lo);
+
+    // // Launch a thread for each solver.
+    // let handles: Vec<_> = solver_list
+    //   .iter()
+    //   .map(|solver| {
+    //     let solver = *solver;
+    //     std::thread::spawn(move || {
+    //       let start_time = std::time::Instant::now();
+    //       // let r = hamming_weight_search(solver, 15, 21);
+    //       let r = hamming_weight_search(solver, input_count, gate_count);
+    //       let elapsed = start_time.elapsed();
+    //       println!("Solver: {:?} finished in {:?}", solver, elapsed);
+    //       match r {
+    //         Some(program) => {
+    //           println!("Program:");
+    //           println!("{}", program.pretty_print());
+    //         }
+    //         None => println!("No solution exists."),
+    //       }
+    //     })
+    //   })
+    //   .collect();
+    // // Wait for all threads to finish.
+    // for handle in handles {
+    //   handle.join().unwrap();
+    // }
   }
 }
