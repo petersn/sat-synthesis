@@ -1,6 +1,8 @@
-use sat_synthesis::{lookup_table_search, vpternlog::{VpternlogProgram, VpternlogResourcesSpec}, SatSolver};
+use clap::Parser;
+use std::path::PathBuf;
+use sat_synthesis::{lookup_table_search, vpternlog::{VpternlogProgram, VpternlogResourcesSpec}, SatSolver, CegisSettings};
 
-fn hamming_weight_search(solver: SatSolver, n: usize, gate_count: usize) -> Option<VpternlogProgram> {
+fn hamming_weight_search(solver: SatSolver, settings: CegisSettings, n: usize, gate_count: usize) -> Option<VpternlogProgram> {
   let resources_spec = VpternlogResourcesSpec {
     input_count: n,
     output_count: (n + 1).next_power_of_two().trailing_zeros() as usize,
@@ -9,6 +11,7 @@ fn hamming_weight_search(solver: SatSolver, n: usize, gate_count: usize) -> Opti
   // println!("resources_spec: {:#?}", resources_spec);
   lookup_table_search::<VpternlogProgram>(
     solver,
+    settings,
     // SatSolver::External(&["glucose", "-model"]),
     // SatSolver::Varisat,
     |bits| {
@@ -23,20 +26,26 @@ fn hamming_weight_search(solver: SatSolver, n: usize, gate_count: usize) -> Opti
   )
 }
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Args {
+  #[arg(short, long, default_value = "best_circuits.txt")]
+  output_file: PathBuf,
+
+  #[arg(short, long, default_value = "10")]
+  counter_examples_per_step: usize,
+}
+
 fn main() {
-  let solver_list = [
-    // SatSolver::External(&["glucose", "-model"]),
-    SatSolver::External(&["cryptominisat"]),
-    // SatSolver::External(&["kissat"]),
-    // SatSolver::Varisat,
-    // SatSolver::Splr,
-  ];
+  let args: Args = Args::parse();
 
   let solver = SatSolver::External(&["cryptominisat5"]);
+  let settings = CegisSettings {
+    counter_examples_per_step: args.counter_examples_per_step,
+  };
+  let mut output_file = std::fs::File::create(&args.output_file).unwrap();
 
-  let mut output_file = std::fs::File::create("best_circuits.txt").unwrap();
-
-  for input_count in 2..=15usize {
+  for input_count in 2.. {
     let input_count_search_start_time = std::time::Instant::now();
     let mut found_lower = false;
     let mut found_upper = false;
@@ -52,7 +61,7 @@ fn main() {
       let start_time = std::time::Instant::now();
       let test_value = (bound_lo + bound_hi) / 2;
       println!("\x1b[92mTesting\x1b[0m input_count = {} with gate_count = {}   (lo={}, hi={})", input_count, test_value, bound_lo, bound_hi);
-      let r = hamming_weight_search(solver, input_count, test_value);
+      let r = hamming_weight_search(solver, settings, input_count, test_value);
 
       match (&r, &best_program_and_gate_count) {
         (Some(program), Some((_, best_gate_count))) if test_value < *best_gate_count => {

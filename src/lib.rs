@@ -375,6 +375,11 @@ pub trait ProgramSynthesis: std::fmt::Debug {
   );
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct CegisSettings {
+  pub counter_examples_per_step: usize,
+}
+
 pub fn program_search<InputSynth: ProgramSynthesis, OutputSynth: ProgramSynthesis>(
   solver: SatSolver,
   base_program: &InputSynth,
@@ -511,6 +516,7 @@ pub fn program_search<InputSynth: ProgramSynthesis, OutputSynth: ProgramSynthesi
 
 pub fn lookup_table_search<OutputSynth: ProgramSynthesis>(
   solver: SatSolver,
+  settings: CegisSettings,
   lut: impl Fn(&[bool]) -> Vec<bool>,
   resources_spec: &OutputSynth::ProgramResourcesSpec,
   log: impl Fn(&str),
@@ -644,7 +650,8 @@ pub fn lookup_table_search<OutputSynth: ProgramSynthesis>(
     let mut rng = rand::thread_rng();
     use rand::seq::SliceRandom;
     current_counter_examples.shuffle(&mut rng);
-    for counter_example_bits in &current_counter_examples[0..10.min(current_counter_examples.len())] {
+    let c = settings.counter_examples_per_step.min(current_counter_examples.len());
+    for counter_example_bits in &current_counter_examples[0..c] {
       if !counter_examples.insert(counter_example_bits.clone()) {
         panic!("Duplicate counter-example: {:?} -- this usually indicates a bug in build_fpga", counter_example_bits);
       }
