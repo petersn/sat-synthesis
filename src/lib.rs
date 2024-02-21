@@ -633,7 +633,7 @@ pub fn lookup_table_search<OutputSynth: ProgramSynthesis>(
 
     // let mut counter_example_bits = vec![];
     // Force the inputs.
-    log(&format!("[{} examples] [correct behavior: {}/{}] Found counter-example: {:?}",
+    log(&format!("[{} examples] [incorrect behavior: {}/{}] Found counter-example: {:?}",
       counter_examples.len(), counter_example_count, 1 << config_vars.input_count, counter_example_bits
     ));
     if !counter_examples.insert(counter_example_bits.clone()) {

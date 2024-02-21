@@ -25,10 +25,10 @@ fn hamming_weight_search(solver: SatSolver, n: usize, gate_count: usize) -> Opti
 
 fn main() {
   let solver_list = [
-    SatSolver::External(&["glucose", "-model"]),
+    // SatSolver::External(&["glucose", "-model"]),
     SatSolver::External(&["cryptominisat"]),
     // SatSolver::External(&["kissat"]),
-    SatSolver::Varisat,
+    // SatSolver::Varisat,
     // SatSolver::Splr,
   ];
   // Launch a thread for each solver.
