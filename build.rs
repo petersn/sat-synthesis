@@ -25,7 +25,7 @@ pub fn generate() -> String {
 "#,
   );
 
-  const READ_WIRES_COUNT: usize = 10;
+  const READ_WIRES_COUNT: usize = 2;
 
   for oob_gives_false in [false, true] {
     let suffix = match oob_gives_false {

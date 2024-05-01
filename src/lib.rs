@@ -177,9 +177,20 @@ impl SatInstance {
     }
   }
 
+  pub fn write_dimacs(&self, file: &mut impl Write) {
+    writeln!(file, "p cnf {} {}", self.current_var, self.contents.len()).unwrap();
+    for clause in &self.contents {
+      for lit in clause {
+        write!(file, "{} ", lit).unwrap();
+      }
+      writeln!(file, "0").unwrap();
+    }
+  }
+
   fn solve_external(current_var: i32, clauses: &[Vec<SatLiteral>], command: &[&str]) -> SatOutcome {
     // Create a temporary DIMACS file.
     let mut file = tempfile::NamedTempFile::new().expect("Failed to create temporary file");
+    // FIXME: Deduplicate this.
     writeln!(file, "p cnf {} {}", current_var, clauses.len()).unwrap();
     for clause in clauses {
       for lit in clause {

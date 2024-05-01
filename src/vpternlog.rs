@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{sat_tables, ConfigVars, ProgramSynthesis, SatInstance, SatLiteral};
+use super::{ConfigVars, ProgramSynthesis, SatInstance, SatLiteral};
 
 #[derive(Debug, Clone)]
 pub struct VpternlogGate {
@@ -71,34 +71,59 @@ pub fn bits_for_index(options: usize) -> usize {
 }
 
 pub fn mux(
-  instance: &mut SatInstance, false_lit: SatLiteral, address: &[SatLiteral], inputs: &[SatLiteral],
+  instance: &mut SatInstance, _false_lit: SatLiteral, address: &[SatLiteral], inputs: &[SatLiteral],
 ) -> SatLiteral {
-  if inputs.len() < sat_tables::READ_WIRES_NO_OOB.len() {
-    let output = instance.fresh();
-    let all_inputs: Vec<_> = [address, inputs].concat();
-    instance.add_precompiled(&sat_tables::READ_WIRES_NO_OOB[inputs.len()], &all_inputs, &[output]);
-    output
-  } else {
-    // Otherwise, we need to use a cascade of multiplexers.
-    let sqrt_input_count = (inputs.len() as f64).sqrt() as usize;
-    let split_size = sqrt_input_count.next_power_of_two().min(8).min(inputs.len());
-    // println!("n: {}, split_size: {}", inputs.len(), split_size);
-    assert!(0 < split_size);
-    assert!(split_size < inputs.len());
-    let (split_addr, remaining_addr) = address.split_at(split_size.ilog2() as usize);
-    // Use first few bits of the address to perform the initial muxing.
-    let mut chunk_muxes = Vec::new();
-    for chunk in inputs.chunks(split_size) {
-      let mut chunk = chunk.to_vec();
-      while chunk.len() < split_size {
-        chunk.push(false_lit);
+  let output = instance.fresh();
+
+  for address_value in 0..1 << address.len() {
+    for flip in [-1, 1] {
+      let mut clause = if address_value < inputs.len() {
+        vec![-flip * inputs[address_value], flip * output]
+      } else if flip == -1 {
+        continue;
+      } else {
+        Vec::new()
+      };
+      for (i, &lit) in address.iter().enumerate() {
+        // Note the negation here -- in a Horn clause the condition is negated.
+        if (address_value >> i) & 1 == 1 {
+          clause.push(-lit);
+        } else {
+          clause.push(lit);
+        }
       }
-      let chunk_output = mux(instance, false_lit, &split_addr, &chunk);
-      chunk_muxes.push(chunk_output);
+      instance.add_clause(clause);
     }
-    // Use the remaining bits of the address to perform the final muxing.
-    mux(instance, false_lit, remaining_addr, &chunk_muxes)
   }
+
+  output
+
+  // if inputs.len() < sat_tables::READ_WIRES_NO_OOB.len() {
+  //   let output = instance.fresh();
+  //   let all_inputs: Vec<_> = [address, inputs].concat();
+  //   instance.add_precompiled(&sat_tables::READ_WIRES_NO_OOB[inputs.len()], &all_inputs, &[output]);
+  //   output
+  // } else {
+  //   // Otherwise, we need to use a cascade of multiplexers.
+  //   let sqrt_input_count = (inputs.len() as f64).sqrt() as usize;
+  //   let split_size = sqrt_input_count.next_power_of_two().min(8).min(inputs.len());
+  //   // println!("n: {}, split_size: {}", inputs.len(), split_size);
+  //   assert!(0 < split_size);
+  //   assert!(split_size < inputs.len());
+  //   let (split_addr, remaining_addr) = address.split_at(split_size.ilog2() as usize);
+  //   // Use first few bits of the address to perform the initial muxing.
+  //   let mut chunk_muxes = Vec::new();
+  //   for chunk in inputs.chunks(split_size) {
+  //     let mut chunk = chunk.to_vec();
+  //     while chunk.len() < split_size {
+  //       chunk.push(false_lit);
+  //     }
+  //     let chunk_output = mux(instance, false_lit, &split_addr, &chunk);
+  //     chunk_muxes.push(chunk_output);
+  //   }
+  //   // Use the remaining bits of the address to perform the final muxing.
+  //   mux(instance, false_lit, remaining_addr, &chunk_muxes)
+  // }
 }
 
 impl ProgramSynthesis for VpternlogProgram {
