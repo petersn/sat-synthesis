@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use sat_synthesis::{
   lookup_table_search,
   nand::{NandProgram, NandResourcesSpec},
@@ -36,7 +37,7 @@ fn hamming_weight_search(solver: SatSolver, args: &Args, n: usize, gate_count: u
   )
 }
 
-fn nand_search(solver: SatSolver, args: &Args, n: usize, lut: u64, gate_count: usize) -> Option<NandProgram> {
+fn nand_search(solver: SatSolver, args: &Args, n: usize, gate_count: usize) -> Option<NandProgram> {
   let resources_spec = NandResourcesSpec {
     input_count: n,
     output_count: 1,
@@ -52,7 +53,7 @@ fn nand_search(solver: SatSolver, args: &Args, n: usize, lut: u64, gate_count: u
     // SatSolver::Varisat,
     |bits| {
       let value = bits.iter().enumerate().map(|(i, &b)| if b { 1 << i } else { 0 }).sum::<usize>();
-      let r = vec![lut & (1 << value) != 0];
+      let r = vec![args.lut & (1 << value) != 0];
       // println!("lut = 0x{:02x}, value = 0x{:02x} (bits = {:?}), r = {:?}", lut, value, bits, r);
       r
       // let count_set = bits.iter().filter(|&&b| b).count();
@@ -88,7 +89,7 @@ struct Args {
   input_count: usize,
 }
 
-fn main() {
+fn old_main() {
   let args: Args = Args::parse();
 
   let solver = SatSolver::External(&["cryptominisat5"]);
@@ -106,7 +107,7 @@ fn main() {
       let start_time = std::time::Instant::now();
       let test_value = (bound_lo + bound_hi) / 2;
       println!("\x1b[92mTesting\x1b[0m input_count = {} with gate_count = {}   (lo={}, hi={})", input_count, test_value, bound_lo, bound_hi);
-      let r = nand_search(solver, &args, input_count, args.lut, test_value);
+      let r = nand_search(solver, &args, input_count, test_value);
 
       match (&r, &best_program_and_gate_count) {
         (Some(program), Some((_, best_gate_count))) if test_value < *best_gate_count => {
@@ -173,4 +174,104 @@ fn main() {
     //   handle.join().unwrap();
     // }
   }
+}
+
+fn search(lut: u64, output_file_mutex: &Mutex<std::fs::File>) {
+  let solver = SatSolver::External(&["cryptominisat5"]);
+  let input_count = 4;
+  let args = Args {
+    output_file: PathBuf::from("this string not used"),
+    counter_examples_per_step: 10,
+    start_size: 0,
+    break_symmetry_15: false,
+    lut,
+    input_count,
+  };
+  let input_count_search_start_time = std::time::Instant::now();
+  // let mut found_lower = false;
+  let mut found_upper = false;
+  let mut best_program_and_gate_count = None;
+  let mut bound_lo = 0;
+  let mut bound_hi = 12;
+  while bound_lo < bound_hi {
+    let start_time = std::time::Instant::now();
+    let test_value = (bound_lo + bound_hi) / 2;
+    println!("\x1b[92mTesting\x1b[0m input_count = {} with gate_count = {}   (lo={}, hi={})", input_count, test_value, bound_lo, bound_hi);
+    let r = nand_search(solver, &args, input_count, test_value);
+
+    match (&r, &best_program_and_gate_count) {
+      (Some(program), Some((_, best_gate_count))) if test_value < *best_gate_count => {
+        best_program_and_gate_count = Some((program.clone(), test_value));
+      }
+      (Some(program), None) => {
+        best_program_and_gate_count = Some((program.clone(), test_value));
+      }
+      _ => {}
+    }
+
+    let elapsed = start_time.elapsed();
+    println!("Solver: {:?} finished in {:?}", solver, elapsed);
+    match r {
+      Some(program) => {
+        println!("\x1b[93mProgram with {} gates:\x1b[0m", test_value);
+        println!("{}", program.pretty_print());
+        bound_hi = test_value;
+        found_upper = true;
+      }
+      None => {
+        println!("\x1b[93mNo solution exists for {} gates.\x1b[0m", test_value);
+        bound_lo = test_value + 1;
+        // found_lower = true;
+      }
+    }
+  }
+  println!("\x1b[91mFinal gate count\x1b[0m: input_count = {}, gate_count = {}", input_count, bound_lo);
+
+  if let Some((best_program, best_gate_count)) = best_program_and_gate_count {
+    let elapsed = input_count_search_start_time.elapsed();
+    use std::io::Write;
+    let mut output_file = output_file_mutex.lock().unwrap();
+    let pretty = best_program.pretty_print();
+    let results = serde_json::json!({
+      "input_count": input_count,
+      "gate_count": best_gate_count,
+      "lut": lut,
+      "elapsed": elapsed.as_secs_f64(),
+      "pretty": pretty,
+      "gates": best_program.gates.iter().map(|gate| &gate.input_indices).collect::<Vec<_>>(),
+      "final_selection": best_program.final_selection,
+      "allow_constant_inputs": sat_synthesis::nand::ALLOW_CONSTANT_INPUTS,
+    });
+    writeln!(output_file, "JSON: {}", serde_json::to_string(&results).unwrap()).unwrap();
+    writeln!(output_file, "===== input_count = {}, gate_count = {}, lut = {:04x} ===== (found in {:?})", input_count, best_gate_count, args.lut, elapsed).unwrap();
+    writeln!(output_file, "{}\n", pretty).unwrap();
+    output_file.flush().unwrap();
+  }
+
+  // assert!(found_lower);
+  assert!(found_upper);
+}
+
+fn main() {
+  let mut numbers: Mutex<Vec<u64>> = Mutex::new((0..10).collect());
+  let mut output_file = Mutex::new(std::fs::File::create("results.txt").unwrap());
+  let thread_count = std::thread::available_parallelism().unwrap().get();
+  println!("thread_count = {}", thread_count);
+  std::thread::scope(|s| {
+    for _ in 0..thread_count {
+      s.spawn(|| {
+        loop {
+          let mut numbers = numbers.lock().unwrap();
+          if numbers.is_empty() {
+            break;
+          }
+          let n = numbers.pop().unwrap();
+          drop(numbers);
+          println!("n = {:04x}", n);
+          search(n, &output_file);
+        }
+      });
+    }
+  });
+  println!("Done");
 }
