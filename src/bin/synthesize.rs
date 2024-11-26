@@ -253,7 +253,7 @@ fn search(lut: u64, output_file_mutex: &Mutex<std::fs::File>) {
 }
 
 fn main() {
-  let mut numbers: Mutex<Vec<u64>> = Mutex::new((0..10).collect());
+  let mut numbers: Mutex<Vec<u64>> = Mutex::new((0..1 << 16).collect());
   let mut output_file = Mutex::new(std::fs::File::create("results.txt").unwrap());
   let thread_count = std::thread::available_parallelism().unwrap().get();
   println!("thread_count = {}", thread_count);
