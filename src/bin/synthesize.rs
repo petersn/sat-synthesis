@@ -181,7 +181,7 @@ fn search(lut: u64, output_file_mutex: &Mutex<std::fs::File>) {
   let input_count = 4;
   let args = Args {
     output_file: PathBuf::from("this string not used"),
-    counter_examples_per_step: 10,
+    counter_examples_per_step: usize::MAX,
     start_size: 0,
     break_symmetry_15: false,
     lut,
