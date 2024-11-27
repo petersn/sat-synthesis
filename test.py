@@ -16,19 +16,17 @@ import itertools
 #     print(ham4(*bits), bits, ham4(*bits) == sum(bits))
 
 def f(x0, x1, x2, x3):
-    t0 = not (x0 and x3)
-    t1 = not (t0 and x3)
-    t2 = not (t1 and x2)
-    t3 = not (x1 and t1)
-    t4 = not (t0 and x0)
-    t5 = not (t4 and t3)
-    t6 = not (t5 and x2)
-    t7 = not (t0 and t5)
-    t8 = not (t2 and t7)
-    t9 = not (t6 and t8)
-    return t9
+    t0 = not (x2 and x3)
+    t1 = not (x3 and x0)
+    t2 = not (x1 and t1)
+    t3 = not (t1 and x3)
+    t4 = not (t3 and x2)
+    t5 = not (t3 and t2)
+    t6 = not (t5 and t0)
+    t7 = not (t4 and t6)
+    return t7
 
-LUT4 = 0xdfe1
+LUT4 = 0xa5fc
 
 def lut(bits):
     index = 8 * bits[3] + 4 * bits[2] + 2 * bits[1] + bits[0]

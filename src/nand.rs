@@ -61,7 +61,14 @@ impl NandProgram {
       ));
     }
     s.push_str("    return");
-    for (i, &final_selection) in self.final_selection.iter().enumerate() {
+    let maybe_two = if ALLOW_CONSTANT_INPUTS { 2 } else { 0 };
+    let just_last = [maybe_two + self.input_count + self.gates.len() - 1];
+    let fs: &[usize] = if self.output_count == 1 {
+      &just_last
+    } else {
+      &self.final_selection
+    };
+    for (i, &final_selection) in fs.iter().enumerate() {
       if i != 0 {
         s.push_str(", ");
       }
@@ -110,8 +117,11 @@ impl ProgramSynthesis for NandProgram {
       });
       wire_count += 1;
     }
-    let final_selection = (0..resources_spec.output_count)
-      .map(|_| instance.n_fresh(bits_for_index(wire_count))).collect();
+    let final_selection = if resources_spec.output_count == 1 {
+      Vec::new()
+    } else {
+      (0..resources_spec.output_count).map(|_| instance.n_fresh(bits_for_index(wire_count))).collect()
+    };
     ConfigVars {
       config_vars_data: NandConfigVars {
         gates,
@@ -146,9 +156,13 @@ impl ProgramSynthesis for NandProgram {
       });
       wire_count += 1;
     }
-    let final_selection = self.final_selection.iter().map(|&wire_index| {
-      number_to_bits(wire_index, bits_for_index(wire_count))
-    }).collect();
+    let final_selection = if self.output_count == 1 {
+      Vec::new()
+    } else {
+      self.final_selection.iter().map(|&wire_index| {
+        number_to_bits(wire_index, bits_for_index(wire_count))
+      }).collect()
+    };
     ConfigVars {
       config_vars_data: NandConfigVars {
         gates: config_vars_data,
@@ -163,7 +177,7 @@ impl ProgramSynthesis for NandProgram {
     config: &ConfigVars<Self::ConfigVarsData>,
     model: &HashMap<SatLiteral, bool>,
   ) -> Self {
-    let lit_to_bool = |lit: SatLiteral| model.get(&lit).copied().unwrap();
+    let lit_to_bool = |lit: SatLiteral| *model.get(&lit).unwrap();
     let bits_to_number = |bits: &[SatLiteral]| {
       bits.iter()
         .enumerate()
@@ -178,9 +192,13 @@ impl ProgramSynthesis for NandProgram {
       ];
       gates.push(NandGate { input_indices });
     }
-    let final_selection = config.config_vars_data.final_selection.iter().map(|bits| {
-      bits_to_number(bits)
-    }).collect();
+    let final_selection = if config.output_count == 1 {
+      Vec::new()
+    } else {
+      config.config_vars_data.final_selection.iter().map(|bits| {
+        bits_to_number(bits)
+      }).collect()
+    };
     NandProgram {
       input_count: config.input_count,
       output_count: config.output_count,
@@ -213,6 +231,9 @@ impl ProgramSynthesis for NandProgram {
       let x1 = values.get(gate.input_indices[1]).copied().unwrap_or(false);
       values.push(!(x0 && x1));
     }
+    if self.output_count == 1 {
+      return vec![values.last().copied().unwrap_or(false)];
+    }
     (0..self.output_count).map(|i| values.get(self.final_selection[i]).copied().unwrap_or(false)).collect()
   }
 
@@ -237,10 +258,16 @@ impl ProgramSynthesis for NandProgram {
       let lut_output = nand_gate(instance, x0, x1);
       wires.push(lut_output);
     }
-    for i in 0..configuration_vars.output_count {
-      let final_bit = mux(instance, false_lit, &configuration_vars.config_vars_data.final_selection[i], &wires);
-      instance.add_clause(vec![final_bit, -output_vars[i]]);
-      instance.add_clause(vec![-final_bit, output_vars[i]]);
+    if configuration_vars.output_count == 1 {
+      let final_bit = *wires.last().unwrap();
+      instance.add_clause(vec![final_bit, -output_vars[0]]);
+      instance.add_clause(vec![-final_bit, output_vars[0]]);
+    } else {
+      for i in 0..configuration_vars.output_count {
+        let final_bit = mux(instance, false_lit, &configuration_vars.config_vars_data.final_selection[i], &wires);
+        instance.add_clause(vec![final_bit, -output_vars[i]]);
+        instance.add_clause(vec![-final_bit, output_vars[i]]);
+      }
     }
   }
 }
